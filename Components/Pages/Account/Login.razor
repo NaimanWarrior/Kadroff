@@ -1,0 +1,73 @@
+﻿@page "/Account/Login"
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using System.ComponentModel.DataAnnotations
+@inject NavigationManager NavigationManager
+
+@rendermode InteractiveServer
+
+<PageTitle>Вход в систему</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center my-4" style="min-height: 75vh;">
+    <RadzenCard class="p-4 shadow-lg" Style="width: 100%; max-width: 420px; border-radius: 12px;">
+        <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" Class="mb-4">
+            <RadzenIcon Icon="login" Style="font-size: 3rem; color: var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" Class="m-0">Авторизация</RadzenText>
+        </RadzenStack>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" Class="mb-3">
+                @errorMessage
+            </RadzenAlert>
+        }
+
+        <form method="post" action="/Account/PerformLogin">
+            <AntiforgeryToken />
+
+            <RadzenStack Gap="1.2rem">
+                <RadzenFormField Text="Email или Логин" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <input type="text" name="loginInput" class="rz-textbox" style="width: 100%;" required />
+                    </ChildContent>
+                </RadzenFormField>
+
+                <RadzenFormField Text="Пароль" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <input type="password" name="passwordInput" class="rz-textbox" style="width: 100%;" required />
+                    </ChildContent>
+                </RadzenFormField>
+
+                <RadzenButton ButtonType="ButtonType.Submit"
+                              Text="Войти"
+                              Icon="login"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Large"
+                              Style="width: 100%; margin-top: 0.5rem;" />
+
+                <RadzenStack AlignItems="AlignItems.Center" Class="mt-2">
+                    <RadzenText TextStyle="TextStyle.Body2">
+                        Ещё нет аккаунта?
+                        <RadzenLink Path="/Account/Register" Text="Зарегистрироваться" Style="font-weight: bold;" />
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenStack>
+        </form>
+    </RadzenCard>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
+
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (Error == "invalid_credentials")
+        {
+            errorMessage = "Неверный логин (email) или пароль.";
+        }
+    }
+}

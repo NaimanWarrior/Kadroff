@@ -1,0 +1,126 @@
+﻿@page "/positions"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@attribute [Authorize]
+
+<PageTitle>Управление вакансиями</PageTitle>
+
+<h3 class="mb-4">Управление вакансиями (Positions)</h3>
+
+<RadzenCard class="mb-3 p-3">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
+        <RadzenButton Icon="add" Text="Создать вакансию" ButtonStyle="ButtonStyle.Success" Click="@OpenCreateDialog" />
+        
+        <RadzenButton Icon="edit" Text="Редактировать" ButtonStyle="ButtonStyle.Warning" 
+                      Disabled="@(selectedPositions == null || selectedPositions.Count != 1)" 
+                      Click="@OpenEditDialog" />
+
+        <RadzenButton Icon="delete" Text="Удалить выбранные" ButtonStyle="ButtonStyle.Danger" 
+                      Disabled="@(selectedPositions == null || !selectedPositions.Any())" 
+                      Click="@DeleteSelectedPositions" />
+
+        <RadzenBadge BadgeStyle="BadgeStyle.Info" Class="ms-auto" IsPill="true">
+            Выбрано: @(selectedPositions?.Count ?? 0)
+        </RadzenBadge>
+    </RadzenStack>
+</RadzenCard>
+
+<RadzenDataGrid @ref="grid" AllowFiltering="true" FilterMode="FilterMode.Simple" AllowPaging="true" PageSize="10"
+                AllowSorting="true" Data="@positions" TItem="Position" SelectionMode="DataGridSelectionMode.Multiple"
+                @bind-Value="@selectedPositions" ColumnWidth="200px">
+    <Columns>
+        <RadzenDataGridColumn TItem="Position" Width="60px" Sortable="false" Filterable="false">
+            <HeaderTemplate>
+                <RadzenCheckBox TValue="bool" Value="@(positions != null && selectedPositions != null && selectedPositions.Count == positions.Count)"
+                                Change="@(args => selectedPositions = args ? positions?.ToList() : new List<Position>())" />
+            </HeaderTemplate>
+            <Template Context="position">
+                <RadzenCheckBox TValue="bool" Value="@(selectedPositions != null && selectedPositions.Contains(position))"
+                                Change="@(args => { if (args) selectedPositions?.Add(position); else selectedPositions?.Remove(position); })" />
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="Position" Property="Id" Title="ID" Width="80px" />
+        <RadzenDataGridColumn TItem="Position" Property="Title" Title="Наименование должности" />
+        <RadzenDataGridColumn TItem="Position" Property="Description" Title="Описание" Sortable="false" />
+        <RadzenDataGridColumn TItem="Position" Property="CreatedAt" Title="Дата создания" FormatString="{0:dd.MM.yyyy HH:mm}" Width="160px" />
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    private RadzenDataGrid<Position>? grid;
+    private List<Position>? positions;
+    private IList<Position>? selectedPositions = new List<Position>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPositionsAsync();
+    }
+
+    private async Task LoadPositionsAsync()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        positions = await context.Positions.OrderByDescending(p => p.CreatedAt).ToListAsync();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var model = new Position();
+        var result = await DialogService.OpenAsync<PositionEditDialog>("Новая вакансия",
+            new Dictionary<string, object> { { "Model", model } });
+
+        if (result == true)
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            context.Positions.Add(model);
+            await context.SaveChangesAsync();
+            await LoadPositionsAsync();
+            NotificationService.Notify(NotificationSeverity.Success, "Успешно", "Вакансия создана.");
+        }
+    }
+
+    private async Task OpenEditDialog()
+    {
+        var target = selectedPositions?.FirstOrDefault();
+        if (target == null) return;
+
+        using var context = await DbFactory.CreateDbContextAsync();
+        var dbPosition = await context.Positions.FindAsync(target.Id);
+        if (dbPosition == null) return;
+
+        var result = await DialogService.OpenAsync<PositionEditDialog>("Редактирование вакансии",
+            new Dictionary<string, object> { { "Model", dbPosition } });
+
+        if (result == true)
+        {
+            await context.SaveChangesAsync();
+            await LoadPositionsAsync();
+            NotificationService.Notify(NotificationSeverity.Info, "Обновлено", "Изменения сохранены.");
+        }
+    }
+
+    private async Task DeleteSelectedPositions()
+    {
+        if (selectedPositions == null || !selectedPositions.Any()) return;
+
+        var confirm = await DialogService.Confirm("Вы уверены, что хотите удалить выбранные вакансии?", "Подтверждение удаления",
+            new ConfirmOptions { OkButtonText = "Да", CancelButtonText = "Отмена" });
+
+        if (confirm == true)
+        {
+            using var context = await DbFactory.CreateDbContextAsync();
+            context.Positions.RemoveRange(selectedPositions);
+            await context.SaveChangesAsync();
+            
+            selectedPositions.Clear();
+            await LoadPositionsAsync();
+            NotificationService.Notify(NotificationSeverity.Warning, "Удалено", "Выбранные вакансии удалены.");
+        }
+    }
+}

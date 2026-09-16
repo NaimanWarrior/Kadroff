@@ -1,0 +1,135 @@
+﻿@page "/Account/Register"
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@inject UserManager<IdentityUser> UserManager
+@inject NavigationManager NavigationManager
+
+@rendermode InteractiveServer
+
+<PageTitle>Регистрация</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center my-4" style="min-height: 75vh;">
+    <RadzenCard class="p-4 shadow-lg" Style="width: 100%; max-width: 500px; border-radius: 12px;">
+        <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" Class="mb-4">
+            <RadzenIcon Icon="person_add" Style="font-size: 3rem; color: var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" Class="m-0">Создание аккаунта</RadzenText>
+        </RadzenStack>
+
+        @if (errorMessages.Any())
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false" Class="mb-3">
+                <ul class="m-0 ps-3">
+                    @foreach (var err in errorMessages)
+                    {
+                        <li>@err</li>
+                    }
+                </ul>
+            </RadzenAlert>
+        }
+
+        <RadzenTemplateForm TItem="RegisterModel" Data="@registerModel" Submit="@HandleRegister">
+            <RadzenStack Gap="1.2rem">
+
+                <RadzenFormField Text="Логин / Имя пользователя" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <RadzenTextBox @bind-Value="registerModel.UserName" Style="width: 100%;" Name="UserName" />
+                    </ChildContent>
+                    <Helper>
+                        <RadzenRequiredValidator Component="UserName" Text="Укажите логин" />
+                    </Helper>
+                </RadzenFormField>
+
+                <RadzenFormField Text="Email" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <RadzenTextBox @bind-Value="registerModel.Email" Style="width: 100%;" Name="Email" />
+                    </ChildContent>
+                    <Helper>
+                        <RadzenRequiredValidator Component="Email" Text="Укажите Email" />
+                        <RadzenEmailValidator Component="Email" Text="Некорректный Email" />
+                    </Helper>
+                </RadzenFormField>
+
+                <RadzenFormField Text="Пароль" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <RadzenPassword @bind-Value="registerModel.Password" Style="width: 100%;" Name="Password" />
+                    </ChildContent>
+                    <Helper>
+                        <RadzenRequiredValidator Component="Password" Text="Укажите пароль" />
+                    </Helper>
+                </RadzenFormField>
+
+                <RadzenFormField Text="Подтверждение пароля" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <RadzenPassword @bind-Value="registerModel.ConfirmPassword" Style="width: 100%;" Name="ConfirmPassword" />
+                    </ChildContent>
+                    <Helper>
+                        <RadzenRequiredValidator Component="ConfirmPassword" Text="Повторите пароль" />
+                        <RadzenCompareValidator Component="ConfirmPassword"
+                                                Value="@registerModel.Password"
+                                                Text="Пароли не совпадают"
+                                                Operator="CompareOperator.Equal" />
+                    </Helper>
+                </RadzenFormField>
+
+                <RadzenButton ButtonType="ButtonType.Submit"
+                              Text="Зарегистрироваться"
+                              Icon="person_add"
+                              IsBusy="@isSubmitting"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Large"
+                              Style="width: 100%; margin-top: 0.5rem;" />
+
+            </RadzenStack>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</div>
+
+<form id="autoLoginForm" method="post" action="/Account/PerformLogin" style="display: none;">
+    <AntiforgeryToken />
+    <input type="hidden" name="loginInput" value="@registerModel.Email" />
+    <input type="hidden" name="passwordInput" value="@registerModel.Password" />
+</form>
+
+@code {
+    private RegisterModel registerModel = new();
+    private bool isSubmitting;
+    private List<string> errorMessages = new();
+
+    @inject IJSRuntime JS
+
+    private async Task HandleRegister()
+    {
+        isSubmitting = true;
+        errorMessages.Clear();
+
+        var user = new IdentityUser
+        {
+            UserName = registerModel.UserName,
+            Email = registerModel.Email
+        };
+
+        var result = await UserManager.CreateAsync(user, registerModel.Password);
+
+        if (result.Succeeded)
+        {
+            await JS.InvokeVoidAsync("eval", "document.getElementById('autoLoginForm').submit()");
+        }
+        else
+        {
+            foreach (var error in result.Errors)
+            {
+                errorMessages.Add(error.Description);
+            }
+            isSubmitting = false;
+        }
+    }
+
+    public class RegisterModel
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

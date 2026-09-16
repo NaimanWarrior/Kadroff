@@ -1,4 +1,4 @@
-html, body {
+﻿html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
@@ -48,4 +48,55 @@ h1:focus {
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
+}
+
+.nav-horizontal {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.custom-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    color: #f1f5f9 !important;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+    cursor: pointer;
+}
+
+.custom-nav-btn:hover {
+    background-color: rgba(241, 245, 249, 0.12);
+    color: #ffffff !important;
+    text-decoration: none;
+}
+
+.custom-nav-btn.active {
+    background-color: rgba(241, 245, 249, 0.2);
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+.custom-nav-btn .bi {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.custom-nav-btn .rz-icon {
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
 }

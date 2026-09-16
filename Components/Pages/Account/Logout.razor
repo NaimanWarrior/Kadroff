@@ -1,0 +1,31 @@
+﻿@page "/Account/Logout"
+@using Radzen
+@using Radzen.Blazor
+
+<PageTitle>Выход из системы</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 75vh;">
+    <RadzenCard class="p-4 shadow-lg text-center" Style="max-width: 420px; width: 100%; border-radius: 12px;">
+        <RadzenStack AlignItems="AlignItems.Center" Gap="1rem" Class="mb-3">
+            <RadzenIcon Icon="logout" Style="font-size: 3.5rem; color: var(--rz-danger);" />
+            <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" Class="m-0">
+                Выход из системы
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1">
+                Вы действительно хотите выйти из своего аккаунта?
+            </RadzenText>
+        </RadzenStack>
+
+        <form method="post" action="/Account/PerformLogout" style="width: 100%; display: block; margin-top: 1.5rem;">
+            <AntiforgeryToken />
+
+            <button type="submit" class="rz-button rz-button-md rz-variant-flat rz-danger rz-shade-default w-100 mb-2" style="width: 100%; border: none; cursor: pointer; padding: 10px;">
+                <i class="rzi m-0 me-1">logout</i> Да, выйти
+            </button>
+        </form>
+
+        <a href="/" class="rz-button rz-button-md rz-variant-flat rz-light rz-shade-default d-block w-100 text-decoration-none mt-2" style="width: 100%; display: block; padding: 10px;">
+            Отмена
+        </a>
+    </RadzenCard>
+</div>

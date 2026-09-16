@@ -1,0 +1,28 @@
+﻿@inject DialogService DialogService
+@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+
+<RadzenStack Gap="1rem" Class="p-2">
+    <RadzenFormField Text="Наименование должности" Variant="Variant.Outlined">
+        <RadzenTextBox @bind-Value="@Model.Title" />
+    </RadzenFormField>
+
+    <RadzenFormField Text="Описание / Требования" Variant="Variant.Outlined">
+        <RadzenTextArea @bind-Value="@Model.Description" Rows="5" />
+    </RadzenFormField>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Отмена" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
+        <RadzenButton Text="Сохранить" ButtonStyle="ButtonStyle.Primary" Click="@Save" Disabled="@string.IsNullOrWhiteSpace(Model.Title)" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public Position Model { get; set; } = new();
+
+    private void Save()
+    {
+        DialogService.Close(true);
+    }
+}
