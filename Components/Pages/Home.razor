@@ -1,0 +1,19 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Главная - Kadroff</PageTitle>
+
+<h1>Система управления вакансиями и резюме "Kadroff"</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="alert alert-success">
+            Вы вошли как: <strong>@context.User.Identity?.Name</strong>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">
+            Вы работаете как Гость. Пожалуйста, войдите в систему.
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
