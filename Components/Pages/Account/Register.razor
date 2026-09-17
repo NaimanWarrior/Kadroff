@@ -3,6 +3,7 @@
 @using Radzen
 @using Radzen.Blazor
 @inject UserManager<IdentityUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
 @inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
@@ -71,6 +72,16 @@
                                                 Operator="CompareOperator.Equal" />
                     </Helper>
                 </RadzenFormField>
+                <RadzenFormField Text="Кто вы?" Variant="Variant.Outlined" Style="width: 100%;">
+                    <ChildContent>
+                        <RadzenDropDown @bind-Value="registerModel.Role"
+                                        Data="@availableRoles"
+                                        TextProperty="Text"
+                                        ValueProperty="Value"
+                                        Style="width: 100%;"
+                                        Name="Role" />
+                    </ChildContent>
+                </RadzenFormField>
 
                 <RadzenButton ButtonType="ButtonType.Submit"
                               Text="Зарегистрироваться"
@@ -103,6 +114,14 @@
         isSubmitting = true;
         errorMessages.Clear();
 
+        var existingEmail = await UserManager.FindByEmailAsync(registerModel.Email);
+        if (existingEmail != null)
+        {
+            errorMessages.Add("Пользователь с таким Email уже существует.");
+            isSubmitting = false;
+            return;
+        }
+
         var user = new IdentityUser
         {
             UserName = registerModel.UserName,
@@ -113,13 +132,26 @@
 
         if (result.Succeeded)
         {
+            string targertRole = registerModel.Email.Equals("xaziev2001@gmail.com", StringComparison.OrdinalIgnoreCase) ? "Admin" : registerModel.Role;
+            if (!await RoleManager.RoleExistsAsync(targertRole))
+            {
+            await RoleManager.CreateAsync(new IdentityRole(targertRole));
+            }
+            await UserManager.AddToRoleAsync(user, targertRole);
             await JS.InvokeVoidAsync("eval", "document.getElementById('autoLoginForm').submit()");
         }
         else
         {
             foreach (var error in result.Errors)
             {
+                if (error.Code == "DuplicateEmail")
+                {
+                    errorMessages.Add("Пользователь с таким Email уже зарегистрирован.");
+                }
+                else
+                {
                 errorMessages.Add(error.Description);
+                }
             }
             isSubmitting = false;
         }
@@ -131,5 +163,17 @@
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;
+        public string Role { get; set; } = "Candidate";
     }
+    private class RoleItem
+    {
+        public string Text { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+    private List<RoleItem> availableRoles = new()
+    {
+       new RoleItem { Text = "Кандидат", Value = "Candidate" },
+       new RoleItem { Text = "Рекрутер", Value = "Recruiter" }
+    };
+
 }

@@ -1,4 +1,4 @@
-using kadroff.Components;
+﻿using kadroff.Components;
 using kadroff.Components.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +14,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")), ServiceLifetime.Scoped);
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options => {
+    options.User.RequireUniqueEmail = true;
     options.SignIn.RequireConfirmedAccount = false;
     options.Password.RequireDigit = false;
     options.Password.RequiredLength = 6;
@@ -47,6 +48,14 @@ using (var scope = app.Services.CreateScope())
                 roleManager.CreateAsync(new IdentityRole(role)).GetAwaiter().GetResult();
             }
         }
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+        var user = await userManager.FindByEmailAsync("xaziev2001@gmail.com");
+        
+            if (user != null && !await userManager.IsInRoleAsync(user, "Admin"))
+            {
+                await userManager.AddToRoleAsync(user, "Admin");
+            }
+        
     } catch {
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogError("An error occurred while migrating the database.");
@@ -60,6 +69,11 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 app.MapPost("/Account/PerformLogout", async (
     SignInManager<IdentityUser> signInManager) =>
 {
@@ -81,7 +95,7 @@ app.MapPost("/Account/PerformLogin", async (
     if (user != null)
     {
         var result = await signInManager.PasswordSignInAsync(
-            user.UserName!,
+            user,
             passwordInput,
             isPersistent: true,
             lockoutOnFailure: false);
@@ -118,11 +132,6 @@ app.MapPost("/Account/PerformRegister", async (
     var error = Uri.EscapeDataString(result.Errors.First().Description);
     return Results.Redirect($"/Account/Register?error={error}");
 });
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseStaticFiles();
-app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
