@@ -1,0 +1,355 @@
+﻿@page "/cv/create"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using kadroff.Components.Data
+@inject CvWizardService WizardService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<div class="container my-4" style="max-width: 850px;">
+    <div class="mb-4 text-center">
+        <h2>Создание резюме</h2>
+        <p class="text-muted">Шаг @currentStep из @totalSteps: <strong>@GetStepTitle(currentStep)</strong></p>
+        <div class="progress" style="height: 10px;">
+            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: @(currentStep * 100 / totalSteps)%;"></div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mb-4">
+        @for (int i = 1; i <= totalSteps; i++)
+        {
+            var stepNum = i;
+            <button type="button"
+                    class="btn btn-sm @(currentStep == stepNum ? "btn-primary" : (currentStep > stepNum ? "btn-outline-success" : "btn-outline-secondary"))"
+                    disabled="@(stepNum > maxReachedStep)"
+                    @onclick="() => GoToStep(stepNum)">
+                @stepNum. @GetStepTitle(stepNum)
+            </button>
+        }
+    </div>
+
+    @if (positions == null)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mb-4">@errorMessage</div>
+            }
+
+            @if (currentStep == 1)
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light fw-bold">Шаг 1: Желаемая позиция</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Выберите позицию *</label>
+                            <InputSelect @bind-Value="model.PositionId" class="form-select form-select-lg">
+                                <option value="0">-- Выберите из списка --</option>
+                                @foreach (var pos in positions)
+                                {
+                                    <option value="@pos.Id">@pos.Title</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="form-check form-switch mt-4">
+                            <InputCheckbox @bind-Value="model.IsPublished" class="form-check-input" id="isPub" />
+                            <label class="form-check-label fw-bold" for="isPub">Опубликовать сразу после сохранения</label>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 2)
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light fw-bold">Шаг 2: Дополнительная информация</div>
+                    <div class="card-body">
+                        @if (!model.Attributes.Any())
+                        {
+                            <p class="text-muted">Атрибуты не настроены в системе.</p>
+                        }
+                        @foreach (var attrGroup in model.Attributes.GroupBy(a => a.Category))
+                        {
+                            <h5 class="mt-3 mb-2 text-primary border-bottom pb-1">@attrGroup.Key</h5>
+                            <div class="row">
+                                @foreach (var attr in attrGroup)
+                                {
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold small">@attr.Name</label>
+                                        <InputText @bind-Value="attr.StringValue" class="form-control" placeholder="Введите значение..." />
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 3)
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Шаг 3: Проекты и опыт</span>
+                        <button type="button" class="btn btn-sm btn-success" @onclick="AddProject">+ Добавить проект</button>
+                    </div>
+                    <div class="card-body">
+                        @if (!model.Projects.Any())
+                        {
+                            <div class="text-center py-3"><p class="text-muted mb-0">Нет добавленных проектов. Нажмите кнопку выше, чтобы добавить.</p></div>
+                        }
+
+                        @for (int i = 0; i < model.Projects.Count; i++)
+                        {
+                            var index = i;
+                            <div class="border rounded p-3 mb-3 bg-light position-relative">
+                                <button type="button" class="btn-close position-absolute top-0 end-0 m-2" @onclick="() => RemoveProject(index)"></button>
+
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label small fw-bold">Название проекта *</label>
+                                        <InputText @bind-Value="model.Projects[index].Name" class="form-control" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Дата начала</label>
+                                        <InputDate @bind-Value="model.Projects[index].StartDate" class="form-control" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold">Дата окончания</label>
+                                        <InputDate @bind-Value="model.Projects[index].EndDate" class="form-control" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-bold">Теги (через запятую, например: C#, SQL, API)</label>
+                                        <InputText @bind-Value="model.Projects[index].TagsInput" class="form-control" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small fw-bold">Описание (Поддерживается Markdown)</label>
+                                        <InputTextArea @bind-Value="model.Projects[index].DescriptionMarkdown" class="form-control" rows="3" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 4)
+            {
+                <div class="card shadow-sm mb-4 border-primary">
+                    <div class="card-header bg-primary text-white fw-bold">Шаг 4: Проверка данных</div>
+                    <div class="card-body">
+                        <h5 class="text-primary">Позиция: @GetPositionTitle(model.PositionId)</h5>
+                        <p>Статус: <strong>@(model.IsPublished ? "Будет опубликовано сразу" : "Сохранить")</strong></p>
+                        <hr />
+                        <h6>Заполненные атрибуты:</h6>
+                        <ul class="list-unstyled">
+                            @foreach (var a in model.Attributes.Where(x => !string.IsNullOrWhiteSpace(x.StringValue)))
+                            {
+                                <li><i class="bi bi-check2 text-success"></i> <strong>@a.Name:</strong> @a.StringValue</li>
+                            }
+                            @if (!model.Attributes.Any(x => !string.IsNullOrWhiteSpace(x.StringValue)))
+                            {
+                                <li class="text-muted">Ничего не заполнено</li>
+                            }
+                        </ul>
+                        <hr />
+                        <h6>Проекты (@model.Projects.Count(x => !string.IsNullOrWhiteSpace(x.Name))):</h6>
+                        <ul class="list-unstyled">
+                            @foreach (var p in model.Projects.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
+                            {
+                                <li class="mb-2 border-start border-3 border-info ps-2">
+                                    <strong>@p.Name</strong>
+                                    @if (!string.IsNullOrEmpty(p.TagsInput))
+                                    {
+                                        <span class="badge bg-secondary ms-2">@p.TagsInput</span>
+                                    }
+                                    <br />
+                                    <small class="text-muted">
+                                        @(p.StartDate?.ToString("MM.yyyy")) - @(p.EndDate?.ToString("MM.yyyy") ?? "Наст. время")
+                                    </small>
+                                </li>
+                            }
+                            @if (!model.Projects.Any(x => !string.IsNullOrWhiteSpace(x.Name)))
+                            {
+                                <li class="text-muted">Проекты не добавлены</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-between mt-4">
+                @if (currentStep > 1)
+                {
+                    <button type="button" class="btn btn-outline-secondary px-4" @onclick="PrevStep">← Назад</button>
+                }
+                else
+                {
+                    <a href="/cv/my" class="btn btn-outline-danger px-4">Отмена</a>
+                }
+
+                @if (currentStep < totalSteps)
+                {
+                    <button type="button" class="btn btn-primary px-4" @onclick="NextStep">Далее →</button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn-success btn-lg px-5 shadow" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Сохранение...</span>
+                        }
+                        else
+                        {
+                            <span>Завершить и сохранить</span>
+                        }
+                    </button>
+                }
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private int currentStep = 1;
+    private int totalSteps = 4;
+    private int maxReachedStep = 1;
+    private bool isSubmitting = false;
+
+    private List<Position>? positions;
+    private CreateCvViewModel model = new();
+    private string? userId;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        positions = await WizardService.GetPositionsAsync();
+
+        var appAttributes = await WizardService.GetAppAttributesAsync();
+        foreach (var attr in appAttributes)
+        {
+            model.Attributes.Add(new UserAttributeViewModel
+            {
+                AttributeId = attr.Id,
+                Category = attr.Category,
+                Name = attr.Name
+            });
+        }
+    }
+
+    private string GetStepTitle(int step) => step switch
+    {
+        1 => "Позиция",
+        2 => "Дополнительно",
+        3 => "Проекты",
+        4 => "Завершение",
+        _ => ""
+    };
+
+    private string GetPositionTitle(int id) =>
+        positions?.FirstOrDefault(p => p.Id == id)?.Title ?? "Не выбрана";
+
+    private bool ValidateCurrentStep()
+    {
+        errorMessage = null;
+        if (currentStep == 1 && model.PositionId <= 0)
+        {
+            errorMessage = "Пожалуйста, выберите желаемую позицию из списка.";
+            return false;
+        }
+        if (currentStep == 3 && model.Projects.Any(p => string.IsNullOrWhiteSpace(p.Name)))
+        {
+            errorMessage = "Заполните названия всех добавленных проектов или удалите пустые блоки.";
+            return false;
+        }
+        return true;
+    }
+
+    private void NextStep()
+    {
+        if (ValidateCurrentStep())
+        {
+            currentStep++;
+            if (currentStep > maxReachedStep)
+            {
+                maxReachedStep = currentStep;
+            }
+        }
+    }
+
+    private void PrevStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+            errorMessage = null;
+        }
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step <= maxReachedStep)
+        {
+            if (ValidateCurrentStep())
+            {
+                currentStep = step;
+                errorMessage = null;
+            }
+        }
+    }
+
+    private void AddProject()
+    {
+        model.Projects.Add(new CandidateProjectViewModel
+        {
+            StartDate = DateTime.Today
+        });
+    }
+
+    private void RemoveProject(int index)
+    {
+        if (index >= 0 && index < model.Projects.Count)
+        {
+            model.Projects.RemoveAt(index);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "Пользователь не авторизован.";
+            return;
+        }
+
+        if (!ValidateCurrentStep()) return;
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var success = await WizardService.SaveWizardDataAsync(userId, model);
+
+        isSubmitting = false;
+
+        if (success)
+        {
+            Navigation.NavigateTo("/cv/my");
+        }
+        else
+        {
+            errorMessage = "Произошла ошибка при сохранении резюме. Попробуйте еще раз.";
+        }
+    }
+}

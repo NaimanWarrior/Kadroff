@@ -1,0 +1,69 @@
+﻿@page "/positions/create"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin, Recruiter")]
+
+@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+@using Microsoft.AspNetCore.Authorization
+
+@inject AppDbContext Db
+@inject NavigationManager Navigation
+
+<RadzenCard style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h3 style="margin-bottom: 20px;">Создание новой вакансии</h3>
+
+    <RadzenTemplateForm TItem="Position" Data="@newPosition" Submit="@OnSubmit">
+        <div class="row" style="margin-bottom: 1rem">
+            <div class="col-md-3 align-items-center d-flex">
+                <RadzenLabel Text="Название вакансии" />
+            </div>
+            <div class="col-md-9">
+                <RadzenTextBox @bind-Value="newPosition.Title" style="width: 100%;" Name="Title" />
+                <RadzenRequiredValidator Component="Title" Text="Обязательное поле" Popup="true" />
+            </div>
+        </div>
+
+        <div class="row" style="margin-bottom: 1rem">
+            <div class="col-md-3 align-items-center d-flex">
+                <RadzenLabel Text="Описание" />
+            </div>
+            <div class="col-md-9">
+                <RadzenTextArea @bind-Value="newPosition.Description" style="width: 100%; height: 150px;" Name="Description" />
+            </div>
+        </div>
+
+        <div class="row" style="margin-bottom: 1rem">
+            <div class="col-md-3 align-items-center d-flex">
+                <RadzenLabel Text="Макс. проектов" />
+            </div>
+            <div class="col-md-9">
+                <RadzenNumeric @bind-Value="newPosition.MaxProjects" style="width: 100%;" Name="MaxProjects" />
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12 text-end">
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Сохранить" ButtonStyle="ButtonStyle.Primary" Icon="save" />
+                <RadzenButton Text="Отмена" Click="@Cancel" ButtonStyle="ButtonStyle.Light" class="ms-2" Icon="cancel" />
+            </div>
+        </div>
+    </RadzenTemplateForm>
+</RadzenCard>
+
+@code {
+    private Position newPosition = new Position();
+
+    private async Task OnSubmit(Position position)
+    {
+        Db.Positions.Add(position);
+        await Db.SaveChangesAsync();
+        
+        Navigation.NavigateTo("/positions"); 
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/positions");
+    }
+}

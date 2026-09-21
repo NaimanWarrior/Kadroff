@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using kadroff.Components.Data;
@@ -11,9 +12,11 @@ using kadroff.Components.Data;
 namespace kadroff.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919101201_UpdateCvRelations")]
+    partial class UpdateCvRelations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -349,9 +352,6 @@ namespace kadroff.Migrations
                     b.Property<DateTime>("AppliedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("AutoAcceptDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("CandidateId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -362,9 +362,6 @@ namespace kadroff.Migrations
 
                     b.Property<int>("PositionId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("ResponseComment")
-                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()

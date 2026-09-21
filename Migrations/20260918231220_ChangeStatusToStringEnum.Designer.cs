@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using kadroff.Components.Data;
@@ -11,9 +12,11 @@ using kadroff.Components.Data;
 namespace kadroff.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260918231220_ChangeStatusToStringEnum")]
+    partial class ChangeStatusToStringEnum
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -299,9 +302,6 @@ namespace kadroff.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
 
-                    b.Property<byte[]>("PdfByte")
-                        .HasColumnType("bytea");
-
                     b.Property<int>("PositionId")
                         .HasColumnType("integer");
 
@@ -319,8 +319,6 @@ namespace kadroff.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PositionId");
 
                     b.ToTable("Cvs");
                 });
@@ -349,9 +347,6 @@ namespace kadroff.Migrations
                     b.Property<DateTime>("AppliedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("AutoAcceptDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("CandidateId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -362,9 +357,6 @@ namespace kadroff.Migrations
 
                     b.Property<int>("PositionId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("ResponseComment")
-                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -544,17 +536,6 @@ namespace kadroff.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("kadroff.Components.Data.Cv", b =>
-                {
-                    b.HasOne("kadroff.Components.Data.Position", "Position")
-                        .WithMany()
-                        .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Position");
                 });
 
             modelBuilder.Entity("kadroff.Components.Data.JobApplication", b =>

@@ -1,8 +1,12 @@
 ﻿using kadroff.Components;
 using kadroff.Components.Data;
+using kadroff.Components.Pages;
+using kadroff.Components.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,13 +33,30 @@ builder.Services.AddAuthentication()
     {
         options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? "temp";
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "temp";
+        options.SignInScheme = IdentityConstants.ExternalScheme;
     });
 
+builder.Services.AddHostedService<ApplicationAutoAcceptWorker>();
+builder.Services.AddScoped<CvService>();
+builder.Services.AddScoped<CvWizardService>();
+builder.Services.AddScoped<DatabaseSeeder>();
+builder.Services.AddScoped<JobApplicationService>();
+builder.Services.AddScoped<CvPdfController>();
 builder.Services.AddRadzenComponents();
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+    var seeder = services.GetRequiredService<DatabaseSeeder>();
+    await seeder.SeedAsync();
     try {
     var dbContext = services.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
@@ -69,6 +90,7 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication();
@@ -79,6 +101,84 @@ app.MapPost("/Account/PerformLogout", async (
 {
     await signInManager.SignOutAsync();
     return Results.Redirect("/");
+});
+app.MapGet("/Account/PerformExternalLogin", (
+    string provider,
+    string? returnUrl,
+    SignInManager<IdentityUser> signInManager) =>
+{
+    var redirectUrl = $"/Account/ExternalLoginCallback?returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}";
+    var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+    return Results.Challenge(properties, new[] { provider });
+});
+app.MapGet("/Account/ExternalLoginCallback", async (
+    string? returnUrl,
+    SignInManager<IdentityUser> signInManager,
+    UserManager<IdentityUser> userManager,
+    RoleManager<IdentityRole> roleManager) =>
+{
+    returnUrl ??= "/";
+
+    var info = await signInManager.GetExternalLoginInfoAsync();
+    if (info == null)
+    {
+        return Results.Redirect("/Account/Login?error=external_login_failed");
+    }
+
+    var result = await signInManager.ExternalLoginSignInAsync(
+        info.LoginProvider,
+        info.ProviderKey,
+        isPersistent: true,
+        bypassTwoFactor: true);
+
+    if (result.Succeeded)
+    {
+        return Results.Redirect(returnUrl);
+    }
+
+    var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+    if (string.IsNullOrEmpty(email))
+    {
+        return Results.Redirect("/Account/Login?error=email_not_provided");
+    }
+
+    var user = await userManager.FindByEmailAsync(email);
+
+    if (user == null)
+    {
+        user = new IdentityUser
+        {
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true
+        };
+
+        var createResult = await userManager.CreateAsync(user);
+        if (!createResult.Succeeded)
+        {
+            var err = Uri.EscapeDataString(createResult.Errors.First().Description);
+            return Results.Redirect($"/Account/Login?error={err}");
+        }
+
+        string targetRole = email.Equals("xaziev2001@gmail.com", StringComparison.OrdinalIgnoreCase)
+            ? "Admin"
+            : "Candidate";
+
+        if (!await roleManager.RoleExistsAsync(targetRole))
+        {
+            await roleManager.CreateAsync(new IdentityRole(targetRole));
+        }
+        await userManager.AddToRoleAsync(user, targetRole);
+    }
+
+    var addLoginResult = await userManager.AddLoginAsync(user, info);
+    if (addLoginResult.Succeeded)
+    {
+        await signInManager.SignInAsync(user, isPersistent: true);
+        return Results.Redirect(returnUrl);
+    }
+
+    return Results.Redirect("/Account/Login?error=failed_to_link_account");
 });
 app.MapPost("/Account/PerformLogin", async (
     HttpContext context,

@@ -1,0 +1,32 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@inject DialogService DialogService
+
+<RadzenStack Gap="1.5rem" Class="rz-p-2">
+    <RadzenText TextStyle="TextStyle.Subtitle1">
+        Вы откликаетесь на вакансию: <strong>@PositionTitle</strong>
+    </RadzenText>
+
+    <RadzenFormField Text="Сопроводительное письмо" Variant="Variant.Outlined" Style="width: 100%;">
+        <RadzenTextArea @bind-Value="@coverLetter"
+                        Rows="5"
+                        MaxLength="2000"
+                        Placeholder="Напишите пару слов о себе..." />
+    </RadzenFormField>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="1rem">
+        <RadzenButton Text="Отмена" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Отправить" Icon="send" ButtonStyle="ButtonStyle.Primary" Click="@Submit" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string PositionTitle { get; set; } = string.Empty;
+
+    private string coverLetter = string.Empty;
+
+    private void Submit()
+    {
+        DialogService.Close(coverLetter);
+    }
+}

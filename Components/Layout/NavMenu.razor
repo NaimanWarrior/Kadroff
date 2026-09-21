@@ -20,6 +20,25 @@
                 <span>Вакансии</span>
             </NavLink>
 
+            <AuthorizeView Roles="Admin, Recruiter">
+                <NavLink class="custom-nav-btn" href="/manage-applications">
+                    <RadzenIcon Icon="email" />
+                    <span>Входящие отклики</span>
+                </NavLink>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="Candidate">
+                <NavLink class="custom-nav-btn" href="/my-applications">
+                    <RadzenIcon Icon="email" />
+                    <span>Мои отклики</span>
+                </NavLink>
+            </AuthorizeView>
+
+            <NavLink class="custom-nav-btn" href="/cv/my">
+                <RadzenIcon Icon="description " />
+                <span>Резюме</span>
+            </NavLink>
+
         </div>
 
         <div class="d-flex align-items-center gap-2">

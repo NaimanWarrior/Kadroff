@@ -1,0 +1,77 @@
+﻿@page "/my-applications"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+@using kadroff.Components.Services
+
+@inject JobApplicationService JobAppService
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Authorize(Roles = "Candidate")]
+@rendermode InteractiveServer
+
+<PageTitle>Мои отклики</PageTitle>
+
+<h3 class="mb-4">Мои отклики</h3>
+
+@if (applications == null)
+{
+    <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (!applications.Any())
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" Variant="Variant.Flat">
+        Вы еще не откликались ни на одну вакансию.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenDataGrid Data="@applications" TItem="JobApplication" AllowPaging="true" PageSize="10" AllowSorting="true">
+        <Columns>
+            <RadzenDataGridColumn TItem="JobApplication" Property="Position.Title" Title="Вакансия" />
+
+            <RadzenDataGridColumn TItem="JobApplication" Property="AppliedAt" Title="Дата отклика" FormatString="{0:dd.MM.yyyy HH:mm}" Width="150px" />
+
+            <RadzenDataGridColumn TItem="JobApplication" Title="Статус" Width="200px">
+                <Template Context="app">
+                    @{
+                        var badgeStyle = app.Status switch
+                        {
+                            JobApplicationStatus.Accepted => BadgeStyle.Success,
+                            JobApplicationStatus.Rejected => BadgeStyle.Danger,
+                            JobApplicationStatus.Interview => BadgeStyle.Info,
+                            JobApplicationStatus.UnderReview => BadgeStyle.Warning,
+                            _ => BadgeStyle.Light
+                        };
+                    }
+                    <RadzenBadge BadgeStyle="@badgeStyle" Text="@app.Status.ToDisplayText()" />
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="JobApplication" Property="CoverLetter" Title="Ваше письмо" Sortable="false">
+                <Template Context="app">
+                    <div style="white-space: pre-wrap; font-size: 0.9em; color: #555;">
+                        @(string.IsNullOrWhiteSpace(app.CoverLetter) ? "—" : app.CoverLetter)
+                    </div>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private List<JobApplication>? applications;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            applications = await JobAppService.GetCandidateApplicationsAsync(userId);
+        }
+    }
+}

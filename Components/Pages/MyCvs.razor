@@ -1,0 +1,91 @@
+﻿@page "/cv/my"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Radzen
+@using Radzen.Blazor
+@inject CvService CvService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "Admin, Candidate")]
+@rendermode InteractiveServer
+
+<h3 class="mb-4">Мои резюме</h3>
+
+<RadzenCard Class="mb-4 p-3 shadow-sm">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
+        <AuthorizeView Roles="Admin, Candidate">
+            <Authorized>
+                <RadzenButton Icon="add" Text="Создать резюме" ButtonStyle="ButtonStyle.Success" Click="@(() => Navigation.NavigateTo("/cv/create"))" />
+            </Authorized>
+        </AuthorizeView>
+    </RadzenStack>
+</RadzenCard>
+
+@if (cvList == null)
+{
+    <div class="text-center"><div class="spinner-border text-primary"></div></div>
+}
+else if (!cvList.Any())
+{
+    <div class="alert alert-info shadow-sm">У вас пока нет созданных резюме. Создайте своё первое резюме!</div>
+}
+else
+{
+    <div class="table-responsive shadow-sm rounded">
+        <table class="table table-hover align-middle mb-0 bg-white">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Желаемая позиция</th>
+                    <th>Дата создания</th>
+                    <th>Статус</th>
+                    <th class="text-end">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var cv in cvList)
+                {
+                    <tr>
+                        <td class="text-muted">#@cv.Id</td>
+                        <td><strong class="text-primary">@cv.PositionTitle</strong></td>
+                        <td>@cv.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td>
+                            @if (cv.IsPublished)
+                            {
+                                <span class="badge bg-success">Опубликовано</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Активен</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a href="/cv/details/@cv.Id" class="btn btn-outline-primary btn-sm me-2">
+                                <i class="bi bi-eye"></i> Открыть
+                            </a>
+                            <a href="/api/cv/pdf/@cv.Id" target="_blank" class="btn btn-danger btn-sm">
+                                <i class="bi bi-file-earmark-pdf"></i> PDF
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<CvItemDto>? cvList;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            cvList = await CvService.GetCandidateCvsAsync(userId);
+        }
+    }
+}

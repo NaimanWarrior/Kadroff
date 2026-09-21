@@ -1,33 +1,40 @@
 ﻿@page "/positions"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @using Radzen
 @using Radzen.Blazor
 @using kadroff.Components.Data
+@using kadroff.Components.Services
+
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject DialogService DialogService
 @inject NotificationService NotificationService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject JobApplicationService JobAppService
+
 @attribute [Authorize]
+@rendermode InteractiveServer
 
 <PageTitle>Управление вакансиями</PageTitle>
 
 <h3 class="mb-4">Управление вакансиями (Positions)</h3>
 
-<RadzenCard class="mb-3 p-3">
+<RadzenCard Class="mb-3 p-3">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
-        <RadzenButton Icon="add" Text="Создать вакансию" ButtonStyle="ButtonStyle.Success" Click="@OpenCreateDialog" />
-        
-        <RadzenButton Icon="edit" Text="Редактировать" ButtonStyle="ButtonStyle.Warning" 
-                      Disabled="@(selectedPositions == null || selectedPositions.Count != 1)" 
-                      Click="@OpenEditDialog" />
-
-        <RadzenButton Icon="delete" Text="Удалить выбранные" ButtonStyle="ButtonStyle.Danger" 
-                      Disabled="@(selectedPositions == null || !selectedPositions.Any())" 
-                      Click="@DeleteSelectedPositions" />
-
-        <RadzenBadge BadgeStyle="BadgeStyle.Info" Class="ms-auto" IsPill="true">
-            Выбрано: @(selectedPositions?.Count ?? 0)
-        </RadzenBadge>
+        <AuthorizeView Roles="Admin, Recruiter">
+            <Authorized>
+                <RadzenButton Icon="add" Text="Создать вакансию" ButtonStyle="ButtonStyle.Success" Click="@(() => Navigation.NavigateTo("/positions/create"))" />
+                <RadzenButton Icon="edit" Text="Редактировать" ButtonStyle="ButtonStyle.Warning"
+                              Disabled="@(selectedPositions == null || selectedPositions.Count != 1)"
+                              Click="@OpenEditDialog" />
+                <RadzenButton Icon="delete" Text="Удалить выбранные" ButtonStyle="ButtonStyle.Danger"
+                              Disabled="@(selectedPositions == null || !selectedPositions.Any())"
+                              Click="@DeleteSelectedPositions" />
+            </Authorized>
+        </AuthorizeView>
     </RadzenStack>
 </RadzenCard>
 
@@ -35,21 +42,38 @@
                 AllowSorting="true" Data="@positions" TItem="Position" SelectionMode="DataGridSelectionMode.Multiple"
                 @bind-Value="@selectedPositions" ColumnWidth="200px">
     <Columns>
-        <RadzenDataGridColumn TItem="Position" Width="60px" Sortable="false" Filterable="false">
+        <RadzenDataGridColumn TItem="Position" Width="50px" Sortable="false" Filterable="false" Visible="@isAdminOrRecruiter">
             <HeaderTemplate>
-                <RadzenCheckBox TValue="bool" Value="@(positions != null && selectedPositions != null && selectedPositions.Count == positions.Count)"
+                <RadzenCheckBox TValue="bool"
+                                Value="@(positions != null && selectedPositions != null && positions.Any() && selectedPositions.Count == positions.Count)"
                                 Change="@(args => selectedPositions = args ? positions?.ToList() : new List<Position>())" />
             </HeaderTemplate>
             <Template Context="position">
-                <RadzenCheckBox TValue="bool" Value="@(selectedPositions != null && selectedPositions.Contains(position))"
-                                Change="@(args => { if (args) selectedPositions?.Add(position); else selectedPositions?.Remove(position); })" />
+                <RadzenCheckBox TValue="bool"
+                                Value="@(selectedPositions != null && selectedPositions.Contains(position))"
+                                Change="@(args => ToggleSelection(position, args))" />
             </Template>
         </RadzenDataGridColumn>
 
-        <RadzenDataGridColumn TItem="Position" Property="Id" Title="ID" Width="80px" />
         <RadzenDataGridColumn TItem="Position" Property="Title" Title="Наименование должности" />
         <RadzenDataGridColumn TItem="Position" Property="Description" Title="Описание" Sortable="false" />
         <RadzenDataGridColumn TItem="Position" Property="CreatedAt" Title="Дата создания" FormatString="{0:dd.MM.yyyy HH:mm}" Width="160px" />
+        <RadzenDataGridColumn TItem="Position" Title="Действия" Sortable="false" Filterable="false" Width="180px" Visible="@isCandidate">
+            <Template Context="position">
+                    @if (appliedPositionIds.Contains(position.Id))
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Success" IsPill="true" Text="Отклик отправлен" Icon="check_circle" Class="rz-p-2" />
+                    }
+                    else
+                    {
+                        <RadzenButton Text="Откликнуться"
+                                      Icon="rate_review"
+                                      ButtonStyle="ButtonStyle.Primary"
+                                      Size="ButtonSize.Small"
+                                      Click="@(() => OpenApplyDialog(position))" />
+                    }
+            </Template>
+        </RadzenDataGridColumn>
     </Columns>
 </RadzenDataGrid>
 
@@ -58,30 +82,102 @@
     private List<Position>? positions;
     private IList<Position>? selectedPositions = new List<Position>();
 
+    private HashSet<int> appliedPositionIds = new();
+
+    private bool isAdminOrRecruiter;
+    private bool isCandidate;
+    private string? currentUserId;
+
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isAdminOrRecruiter = user.IsInRole("Admin") || user.IsInRole("Recruiter");
+        isCandidate = user.IsInRole("Candidate");
+
         await LoadPositionsAsync();
+        await LoadAppliedPositionsAsync();
     }
 
     private async Task LoadPositionsAsync()
     {
         using var context = await DbFactory.CreateDbContextAsync();
-        positions = await context.Positions.OrderByDescending(p => p.CreatedAt).ToListAsync();
+        positions = await context.Positions.AsNoTracking().OrderByDescending(p => p.CreatedAt).ToListAsync();
     }
 
-    private async Task OpenCreateDialog()
+    private async Task LoadAppliedPositionsAsync()
     {
-        var model = new Position();
-        var result = await DialogService.OpenAsync<PositionEditDialog>("Новая вакансия",
-            new Dictionary<string, object> { { "Model", model } });
-
-        if (result == true)
+        if (isCandidate && !string.IsNullOrEmpty(currentUserId))
         {
             using var context = await DbFactory.CreateDbContextAsync();
-            context.Positions.Add(model);
-            await context.SaveChangesAsync();
-            await LoadPositionsAsync();
-            NotificationService.Notify(NotificationSeverity.Success, "Успешно", "Вакансия создана.");
+            var ids = await context.JobApplications
+                .Where(j => j.CandidateId == currentUserId)
+                .Select(j => j.PositionId)
+                .ToListAsync();
+
+            appliedPositionIds = new HashSet<int>(ids);
+        }
+    }
+
+    private void ToggleSelection(Position position, bool isChecked)
+    {
+        selectedPositions ??= new List<Position>();
+        if (isChecked)
+        {
+            if (!selectedPositions.Contains(position))
+                selectedPositions.Add(position);
+        }
+        else
+        {
+            selectedPositions.Remove(position);
+        }
+    }
+
+    private async Task OpenApplyDialog(Position position)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Ошибка", "currentUserId равен NULL. Идентификатор пользователя не найден.");
+            return;
+        }
+
+        try
+        {
+            bool alreadyApplied = await JobAppService.HasAlreadyAppliedAsync(position.Id, currentUserId);
+            if (alreadyApplied)
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, "Внимание", "Вы уже откликались на эту вакансию.");
+                return;
+            }
+
+            var result = await DialogService.OpenAsync<ApplyDialog>("Отклик на вакансию",
+                new Dictionary<string, object>
+                {
+                { "PositionTitle", position.Title }
+                },
+                new DialogOptions { Width = "500px", Resizable = false, Draggable = true });
+
+            if (result is string coverLetter)
+            {
+                var (success, message) = await JobAppService.ApplyAsync(position.Id, currentUserId, coverLetter);
+
+                if (success)
+                {
+                    NotificationService.Notify(NotificationSeverity.Success, "Успешно", message);
+                    await LoadAppliedPositionsAsync();
+                }
+                else
+                {
+                    NotificationService.Notify(NotificationSeverity.Error, "Ошибка", message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Исключение", ex.Message);
+            Console.WriteLine($"[ERROR OpenApplyDialog]: {ex}");
         }
     }
 
@@ -101,6 +197,7 @@
         {
             await context.SaveChangesAsync();
             await LoadPositionsAsync();
+            selectedPositions?.Clear();
             NotificationService.Notify(NotificationSeverity.Info, "Обновлено", "Изменения сохранены.");
         }
     }
@@ -115,12 +212,18 @@
         if (confirm == true)
         {
             using var context = await DbFactory.CreateDbContextAsync();
-            context.Positions.RemoveRange(selectedPositions);
+
+            var idsToDelete = selectedPositions.Select(p => p.Id).ToList();
+            var itemsToDelete = await context.Positions.Where(p => idsToDelete.Contains(p.Id)).ToListAsync();
+
+            context.Positions.RemoveRange(itemsToDelete);
             await context.SaveChangesAsync();
-            
+
             selectedPositions.Clear();
             await LoadPositionsAsync();
             NotificationService.Notify(NotificationSeverity.Warning, "Удалено", "Выбранные вакансии удалены.");
         }
     }
 }
+
+<RadzenComponents />

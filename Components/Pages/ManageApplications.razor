@@ -1,0 +1,105 @@
+﻿@page "/manage-applications"
+@using Microsoft.AspNetCore.Authorization
+@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+@using kadroff.Components.Services
+
+@inject JobApplicationService JobAppService
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+@attribute [Authorize(Roles = "Admin, Recruiter")]
+@rendermode InteractiveServer
+
+<PageTitle>Входящие отклики</PageTitle>
+
+<h3 class="mb-4">Управление откликами</h3>
+
+@if (applications == null)
+{
+    <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenDataGrid Data="@applications" TItem="JobApplication" AllowPaging="true" PageSize="10" AllowSorting="true" AllowFiltering="true">
+        <Columns>
+            <RadzenDataGridColumn TItem="JobApplication" Property="Candidate.Email" Title="Кандидат" Width="180px" />
+            <RadzenDataGridColumn TItem="JobApplication" Property="Position.Title" Title="Вакансия" Width="180px" />
+            <RadzenDataGridColumn TItem="JobApplication" Property="AppliedAt" Title="Дата" FormatString="{0:dd.MM.yyyy}" Width="100px" />
+
+            <RadzenDataGridColumn TItem="JobApplication" Title="Статус" Width="170px">
+                <Template Context="app">
+                    <RadzenBadge BadgeStyle="@GetBadgeStyle(app.Status)" Text="@app.Status.ToDisplayText()" IsPill="true" />
+                    @if (app.AutoAcceptDate.HasValue && app.Status != JobApplicationStatus.Accepted && app.Status != JobApplicationStatus.Rejected)
+                    {
+                        <div class="text-muted style-italic mt-1" style="font-size: 0.75rem;">
+                            Авто-принятие: @app.AutoAcceptDate.Value.ToString("dd.MM.yyyy")
+                        </div>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+
+            <RadzenDataGridColumn TItem="JobApplication" Title="Действия" Width="160px" Sortable="false" Filterable="false">
+                <Template Context="app">
+                    <RadzenButton Icon="gavel"
+                                  Text="Ответить"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small"
+                                  Click="@(() => OpenDecisionDialog(app))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private List<JobApplication>? applications;
+
+    protected override async Task OnInitializedAsync()
+    {
+        applications = await JobAppService.GetAllApplicationsAsync();
+    }
+
+    private async Task OpenDecisionDialog(JobApplication app)
+    {
+        var result = await DialogService.OpenAsync<ApplicationDecisionDialog>(
+            $"Обработка отклика: {app.Candidate?.Email}",
+            new Dictionary<string, object> { { "Application", app } },
+            new DialogOptions { Width = "600px", Resizable = true, Draggable = true });
+
+        if (result is ApplicationDecisionDialog.DecisionResult decision)
+        {
+            var (success, message) = await JobAppService.SaveDecisionAsync(
+                app.Id,
+                decision.NewStatus,
+                decision.ResponseComment,
+                decision.AutoAcceptDate);
+
+            if (success)
+            {
+                app.Status = decision.NewStatus;
+                app.ResponseComment = decision.ResponseComment;
+                app.AutoAcceptDate = decision.AutoAcceptDate;
+
+                NotificationService.Notify(NotificationSeverity.Success, "Сохранено", "Решение по отклику обновлено.");
+                StateHasChanged();
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Ошибка", message);
+            }
+        }
+    }
+
+    private BadgeStyle GetBadgeStyle(JobApplicationStatus status) => status switch
+    {
+        JobApplicationStatus.Submitted => BadgeStyle.Secondary,
+        JobApplicationStatus.UnderReview => BadgeStyle.Warning,
+        JobApplicationStatus.Interview => BadgeStyle.Info,
+        JobApplicationStatus.Accepted => BadgeStyle.Success,
+        JobApplicationStatus.Rejected => BadgeStyle.Danger,
+        _ => BadgeStyle.Light
+    };
+}
+
+<RadzenComponents />

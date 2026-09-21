@@ -1,0 +1,86 @@
+﻿@using Radzen
+@using Radzen.Blazor
+@using kadroff.Components.Data
+
+@inject DialogService DialogService
+
+<div class="p-2">
+    <div class="mb-3">
+        <label class="form-label text-muted fw-bold">Сопроводительное письмо кандидата:</label>
+        <div class="p-2 bg-light border rounded" style="max-height: 120px; overflow-y: auto; font-size: 0.9em;">
+            @(string.IsNullOrWhiteSpace(Application.CoverLetter) ? "Кандидат не прикрепил письмо." : Application.CoverLetter)
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Комментарий / Ответ кандидату:</label>
+        <RadzenTextArea @bind-Value="ResponseComment" Rows="3" Class="w-100" Placeholder="Введите заметку или ответ кандидату..." />
+    </div>
+
+    <div class="mb-4">
+        <label class="form-label fw-bold">Запланированная дата принятия (испытательный срок / выход):</label>
+        <RadzenDatePicker @bind-Value="AutoAcceptDate"
+                          DateFormat="dd.MM.yyyy"
+                          Min="DateTime.Today"
+                          Class="w-100"
+                          Placeholder="Выберите дату (необязательно)" />
+        <small class="text-muted d-block mt-1">
+            Если дата выбрана, после ее наступления система <b>автоматически переведет статус в "Принят"</b>.
+        </small>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+        <RadzenButton Text="Отмена" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+
+        <div class="d-flex gap-2">
+            <RadzenButton Text="Отказ"
+                          Icon="cancel"
+                          ButtonStyle="ButtonStyle.Danger"
+                          Click="@(() => Submit(JobApplicationStatus.Rejected))" />
+
+            <RadzenButton Text="Собеседование"
+                          Icon="event"
+                          ButtonStyle="ButtonStyle.Info"
+                          Click="@(() => Submit(JobApplicationStatus.Interview))" />
+
+            <RadzenButton Text="Принять сразу"
+                          Icon="check_circle"
+                          ButtonStyle="ButtonStyle.Success"
+                          Click="@(() => Submit(JobApplicationStatus.Accepted))" />
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public JobApplication Application { get; set; } = null!;
+
+    private string? ResponseComment;
+    private DateTime? AutoAcceptDate;
+
+    protected override void OnInitialized()
+    {
+        ResponseComment = Application.ResponseComment;
+        AutoAcceptDate = Application.AutoAcceptDate;
+    }
+
+    private void Submit(JobApplicationStatus newStatus)
+    {
+        DateTime? utcAutoAcceptDate = AutoAcceptDate.HasValue
+            ? DateTime.SpecifyKind(AutoAcceptDate.Value, DateTimeKind.Utc)
+            : null;
+
+        DialogService.Close(new DecisionResult
+        {
+            NewStatus = newStatus,
+            ResponseComment = ResponseComment,
+            AutoAcceptDate = utcAutoAcceptDate
+        });
+    }
+
+    public class DecisionResult
+    {
+        public JobApplicationStatus NewStatus { get; set; }
+        public string? ResponseComment { get; set; }
+        public DateTime? AutoAcceptDate { get; set; }
+    }
+}
