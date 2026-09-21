@@ -60,18 +60,18 @@
         <RadzenDataGridColumn TItem="Position" Property="CreatedAt" Title="Дата создания" FormatString="{0:dd.MM.yyyy HH:mm}" Width="160px" />
         <RadzenDataGridColumn TItem="Position" Title="Действия" Sortable="false" Filterable="false" Width="180px" Visible="@isCandidate">
             <Template Context="position">
-                    @if (appliedPositionIds.Contains(position.Id))
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Success" IsPill="true" Text="Отклик отправлен" Icon="check_circle" Class="rz-p-2" />
-                    }
-                    else
-                    {
-                        <RadzenButton Text="Откликнуться"
-                                      Icon="rate_review"
-                                      ButtonStyle="ButtonStyle.Primary"
-                                      Size="ButtonSize.Small"
-                                      Click="@(() => OpenApplyDialog(position))" />
-                    }
+                @if (appliedPositionIds.Contains(position.Id))
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" IsPill="true" Text="Отклик отправлен" Icon="check_circle" Class="rz-p-2" />
+                }
+                else
+                {
+                    <RadzenButton Text="Откликнуться"
+                                  Icon="rate_review"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small"
+                                  Click="@(() => OpenApplyDialog(position))" />
+                }
             </Template>
         </RadzenDataGridColumn>
     </Columns>
@@ -109,7 +109,7 @@
 
     private async Task LoadAppliedPositionsAsync()
     {
-        if (isCandidate && !string.IsNullOrEmpty(currentUserId))
+        if (isCandidate && !string.IsNullOrWhiteSpace(currentUserId))
         {
             using var context = await DbFactory.CreateDbContextAsync();
             var ids = await context.JobApplications
@@ -137,14 +137,24 @@
 
     private async Task OpenApplyDialog(Position position)
     {
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            NotificationService.Notify(NotificationSeverity.Error, "Ошибка", "currentUserId равен NULL. Идентификатор пользователя не найден.");
-            return;
-        }
-
         try
         {
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Ошибка", "Идентификатор пользователя не найден. Авторизуйтесь повторно.");
+                return;
+            }
+
+            using var context = await DbFactory.CreateDbContextAsync();
+
+            var tbCvs = await context.Cvs.AnyAsync(c => c.UserId == currentUserId);
+
+            if (!tbCvs)
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, "Внимание", "Для отклика на вакансию необходимо сначала создать резюме.");
+                return;
+            }
+
             bool alreadyApplied = await JobAppService.HasAlreadyAppliedAsync(position.Id, currentUserId);
             if (alreadyApplied)
             {
@@ -155,7 +165,7 @@
             var result = await DialogService.OpenAsync<ApplyDialog>("Отклик на вакансию",
                 new Dictionary<string, object>
                 {
-                { "PositionTitle", position.Title }
+                    { "PositionTitle", position.Title }
                 },
                 new DialogOptions { Width = "500px", Resizable = false, Draggable = true });
 
@@ -176,7 +186,7 @@
         }
         catch (Exception ex)
         {
-            NotificationService.Notify(NotificationSeverity.Error, "Исключение", ex.Message);
+            NotificationService.Notify(NotificationSeverity.Error, "Ошибка", $"Произошла ошибка при отклике: {ex.Message}");
             Console.WriteLine($"[ERROR OpenApplyDialog]: {ex}");
         }
     }
