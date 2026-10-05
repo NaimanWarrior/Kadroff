@@ -138,6 +138,7 @@ namespace kadroff.Components.Data
         public uint Version { get; set; }
 
         public ICollection<PositionAttribute> PositionAttributes { get; set; } = new List<PositionAttribute>();
+        public ICollection<PositionToken> PositionTokens { get; set; } = new List<PositionToken>();
     }
 
     public class PositionAttribute

@@ -18,6 +18,7 @@ namespace kadroff.Controllers
             if (string.IsNullOrWhiteSpace(apiToken))
             {
                 var allData = await _db.Positions
+                    .Where(p => p.PositionTokens.Any())
                     .Include(p => p.PositionAttributes)
                         .ThenInclude(pa => pa.Attribute)
                     .Select(p => new
