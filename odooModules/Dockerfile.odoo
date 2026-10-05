@@ -1,0 +1,5 @@
+FROM odoo:17.0
+COPY ./odooModules/kadroffPositions /mnt/extra-addons/kadroffPositions
+USER root
+RUN chown -R odoo:odoo /mnt/extra-addons/kadroffPositions
+USER odoo

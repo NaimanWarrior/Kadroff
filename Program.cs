@@ -35,7 +35,7 @@ builder.Services.AddAuthentication()
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? "temp";
         options.SignInScheme = IdentityConstants.ExternalScheme;
     });
-
+builder.Services.AddHttpClient<SalesforceService>();
 builder.Services.AddHostedService<ApplicationAutoAcceptWorker>();
 builder.Services.AddScoped<CvService>();
 builder.Services.AddScoped<CvWizardService>();
@@ -43,6 +43,7 @@ builder.Services.AddScoped<DatabaseSeeder>();
 builder.Services.AddScoped<JobApplicationService>();
 builder.Services.AddScoped<CvPdfController>();
 builder.Services.AddRadzenComponents();
+builder.Services.AddControllers();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -90,6 +91,7 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+app.MapControllers();
 app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseStaticFiles();

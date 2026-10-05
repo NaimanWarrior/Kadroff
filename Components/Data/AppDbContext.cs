@@ -19,6 +19,7 @@ namespace kadroff.Components.Data
         public DbSet<CandidateProject> CandidateProjects { get; set; }
         public DbSet<PositionComment> PositionComments { get; set; }
         public DbSet<CvLike> CvLikes { get; set; }
+        public DbSet<PositionToken> PositionTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -175,5 +176,18 @@ namespace kadroff.Components.Data
     {
         public long CvId { get; set; }
         public string RecruiterId { get; set; } = string.Empty;
+    }
+
+    public class PositionToken
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public int PositionId { get; set; }
+
+        [Required]
+        public string Token { get; set; } = Guid.NewGuid().ToString("N");
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

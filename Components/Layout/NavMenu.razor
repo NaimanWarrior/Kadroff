@@ -49,7 +49,7 @@
                             <RadzenIcon Icon="account_circle" Style="font-size: 1.8rem; color: #ffffff;" />
                         </Template>
                         <ChildContent>
-                            <RadzenProfileMenuItem Text="@context.User.Identity?.Name" Icon="person" Disabled="true" />
+                            <RadzenProfileMenuItem Text="@context.User.Identity?.Name" Icon="person" Path="Account/Profile" />
                             <RadzenProfileMenuItem Text="Выйти" Icon="logout" Path="Account/Logout" />
                         </ChildContent>
                     </RadzenProfileMenu>

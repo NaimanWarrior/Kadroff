@@ -1,0 +1,150 @@
+﻿@page "/Account/Profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using System.Security.Claims
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<IdentityUser> UserManager
+@inject SalesforceService SalesforceService
+@inject NotificationService NotificationService
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<RadzenStack Gap="1.5rem" Class="rz-p-4">
+    <RadzenText TextStyle="TextStyle.H4">Профиль пользователя</RadzenText>
+
+    @if (currentUser == null)
+    {
+        <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <RadzenCard Class="rz-shadow-2">
+            <RadzenText TextStyle="TextStyle.H6" Class="rz-mb-3">Информация из БД</RadzenText>
+            <RadzenStack Gap="0.5rem">
+                <div><strong>Email:</strong> @currentUser.Email</div>
+                <div><strong>ID пользователя:</strong> @currentUser.Id</div>
+                <div><strong>Роли:</strong> @(userRoles.Any() ? string.Join(", ", userRoles) : "Роль не назначена")</div>
+            </RadzenStack>
+        </RadzenCard>
+
+        <RadzenCard Class="rz-shadow-2">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.H6" Class="rz-m-0">Интеграция с Salesforce CRM</RadzenText>
+                <RadzenButton Text="@(isFormOpen ? "Свернуть" : "Передать данные в CRM")"
+                              Icon="@(isFormOpen ? "expand_less" : "cloud_upload")"
+                              ButtonStyle="ButtonStyle.Info"
+                              Click="@(() => isFormOpen = !isFormOpen)" />
+            </RadzenStack>
+
+            @if (isFormOpen)
+            {
+                <RadzenTemplateForm TItem="SalesforceFormModel" Data="@sfModel" Submit="@OnSubmitSalesforce">
+                    <RadzenStack Gap="1rem">
+                        <RadzenFormField Text="Имя" Class="w-100">
+                            <RadzenTextBox @bind-Value="sfModel.FirstName" Class="w-100" />
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="Фамилия" Class="w-100">
+                            <RadzenTextBox @bind-Value="sfModel.LastName" Class="w-100" />
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="Название компании / Аккаунта" Class="w-100">
+                            <RadzenTextBox @bind-Value="sfModel.CompanyName" Class="w-100" />
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="Номер телефона" Class="w-100">
+                            <RadzenTextBox @bind-Value="sfModel.Phone" Class="w-100" />
+                        </RadzenFormField>
+
+                        <RadzenButton ButtonType="ButtonType.Submit"
+                                      Text="Отправить в Salesforce"
+                                      Icon="send"
+                                      IsBusy="@isSending"
+                                      ButtonStyle="ButtonStyle.Success"
+                                      Class="rz-mt-2" />
+                    </RadzenStack>
+                </RadzenTemplateForm>
+            }
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private IdentityUser? currentUser;
+    private IList<string> userRoles = new List<string>();
+
+    private bool isFormOpen = false;
+    private bool isSending = false;
+    private SalesforceFormModel sfModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        currentUser = await UserManager.GetUserAsync(authState.User);
+
+        if (currentUser != null)
+        {
+            userRoles = await UserManager.GetRolesAsync(currentUser);
+
+            sfModel.FirstName = currentUser.UserName?.Split('@')[0] ?? "Кандидат";
+            sfModel.LastName = "Пользователь";
+            sfModel.CompanyName = $"Компания_{currentUser.UserName?.Split('@')[0]}";
+        }
+    }
+
+    private async Task OnSubmitSalesforce()
+    {
+        if (currentUser == null)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Внимание", "Не удалось определить текущего пользователя");
+            return;
+        }
+
+        isSending = true;
+        StateHasChanged();
+
+        try
+        {
+            bool success = await SalesforceService.CreateAccountAndContactAsync(
+                companyName: string.IsNullOrWhiteSpace(sfModel.CompanyName) ? "Новый Аккаунт" : sfModel.CompanyName,
+                firstName: string.IsNullOrWhiteSpace(sfModel.FirstName) ? "Имя" : sfModel.FirstName,
+                lastName: string.IsNullOrWhiteSpace(sfModel.LastName) ? "Фамилия" : sfModel.LastName,
+                email: currentUser.Email ?? "user@example.com",
+                phone: sfModel.Phone
+            );
+
+            if (success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Успешно!", "Account и Contact успешно созданы в Salesforce");
+                isFormOpen = false;
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Ошибка", "Не удалось отправить данные в Salesforce");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"--> [ОШИБКА ИСКЛЮЧЕНИЯ]: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Ошибка запроса", ex.Message);
+        }
+        finally
+        {
+            isSending = false;
+            StateHasChanged();
+        }
+    }
+
+    public class SalesforceFormModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+    }
+}

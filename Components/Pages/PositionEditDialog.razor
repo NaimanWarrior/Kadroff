@@ -1,7 +1,10 @@
-﻿@inject DialogService DialogService
+﻿@using Microsoft.EntityFrameworkCore
 @using Radzen
 @using Radzen.Blazor
 @using kadroff.Components.Data
+@inject DialogService DialogService
+@inject AppDbContext DbContext
+@inject NotificationService NotificationService
 
 <RadzenStack Gap="1rem" Class="p-2">
     <RadzenFormField Text="Наименование должности" Variant="Variant.Outlined">
@@ -12,6 +15,42 @@
         <RadzenTextArea @bind-Value="@Model.Description" Rows="5" />
     </RadzenFormField>
 
+    <RadzenCard Class="rz-background-color-neutral-2">
+        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Интеграция с Odoo</RadzenText>
+
+        @if (Model.Id == 0)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" Class="rz-color-danger">
+                Сначала сохраните вакансию, чтобы сгенерировать API-токен для Odoo.
+            </RadzenText>
+        }
+        else
+        {
+            <RadzenStack Gap="0.5rem">
+                <RadzenFormField Text="API Token для Odoo" Variant="Variant.Outlined">
+                    <RadzenTextBox Value="@generatedToken" ReadOnly="true" Placeholder="Токен ещё не сгенерирован" />
+                </RadzenFormField>
+
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenButton Text="Сгенерировать токен"
+                                  Icon="key"
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Size="ButtonSize.Small"
+                                  Click="@GenerateToken" />
+
+                    @if (!string.IsNullOrEmpty(generatedToken))
+                    {
+                        <RadzenButton Text="Копировать"
+                                      Icon="content_copy"
+                                      ButtonStyle="ButtonStyle.Info"
+                                      Size="ButtonSize.Small"
+                                      Click="@CopyTokenToClipboard" />
+                    }
+                </RadzenStack>
+            </RadzenStack>
+        }
+    </RadzenCard>
+
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
         <RadzenButton Text="Отмена" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(false))" />
         <RadzenButton Text="Сохранить" ButtonStyle="ButtonStyle.Primary" Click="@Save" Disabled="@string.IsNullOrWhiteSpace(Model.Title)" />
@@ -20,7 +59,57 @@
 
 @code {
     [Parameter] public Position Model { get; set; } = new();
+    private string? generatedToken;
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Id > 0)
+        {
+            var existingToken = await DbContext.PositionTokens
+                .FirstOrDefaultAsync(t => t.PositionId == Model.Id);
 
+            if (existingToken != null)
+            {
+                generatedToken = existingToken.Token;
+            }
+        }
+    }
+
+    private async Task GenerateToken()
+    {
+        if (Model.Id == 0) return;
+
+        var existingToken = await DbContext.PositionTokens
+            .FirstOrDefaultAsync(t => t.PositionId == Model.Id);
+
+        string newTokenValue = Guid.NewGuid().ToString("N");
+
+        if (existingToken != null)
+        {
+            existingToken.Token = newTokenValue;
+            existingToken.CreatedAt = DateTime.UtcNow;
+            DbContext.PositionTokens.Update(existingToken);
+        }
+        else
+        {
+            var tokenRecord = new PositionToken
+            {
+                PositionId = Model.Id,
+                Token = newTokenValue,
+                CreatedAt = DateTime.UtcNow
+            };
+            await DbContext.PositionTokens.AddAsync(tokenRecord);
+        }
+
+        await DbContext.SaveChangesAsync();
+        generatedToken = newTokenValue;
+
+        NotificationService.Notify(NotificationSeverity.Success, "Успех", "Новый API токен сгенерирован");
+    }
+
+    private void CopyTokenToClipboard()
+    {
+        NotificationService.Notify(NotificationSeverity.Info, "Токен скопирован", generatedToken);
+    }
     private void Save()
     {
         DialogService.Close(true);
